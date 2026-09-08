@@ -2,6 +2,10 @@
 venv/
 .venv/
 
+# Buildozer build files and packages
+.buildozer/
+bin/
+
 # Python cache
 __pycache__/
 *.py[cod]
