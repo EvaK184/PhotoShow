@@ -23,9 +23,21 @@ class Slideshow:
         self.index = (self.index - 1) % len(self.photos)
         self.image.source = self.photos[self.index]
 
-    def toggle_play(self, instance=None):
+    @property
+    def is_playing(self):
+        return self.event is not None
+
+    def play(self):
         if self.event is None:
             self.event = Clock.schedule_interval(self.next_photo, 5)
-        else:
+
+    def pause(self):
+        if self.event is not None:
             self.event.cancel()
             self.event = None
+
+    def toggle_play(self, instance=None):
+        if self.is_playing:
+            self.pause()
+        else:
+            self.play()
