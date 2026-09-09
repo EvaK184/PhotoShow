@@ -19,6 +19,13 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.uix.image import Image
 
+
+class TimingImage(Image):
+    """Timing tests do not need to decode photo files."""
+
+    def texture_update(self, *_args):
+        pass
+
 from main import PhotoFrame
 from slideshow import PHOTO_DURATIONS, Slideshow
 
@@ -28,8 +35,8 @@ class PhotoTimingTests(unittest.TestCase):
         self.schedule = patch("slideshow.Clock.schedule_interval").start()
         self.addCleanup(patch.stopall)
         # Use a real, empty Image widget without needing a user's photo folder.
-        patch("slideshow.os.listdir", return_value=["photo.jpg"]).start()
-        patch("slideshow.Image", side_effect=lambda **kwargs: Image()).start()
+        patch("slideshow.load_local_photos", return_value=["photo.jpg"]).start()
+        patch("slideshow.Image", side_effect=lambda **kwargs: TimingImage()).start()
 
     def test_each_duration_is_used_when_playback_starts(self):
         show = Slideshow("unused")
@@ -63,6 +70,7 @@ class PhotoTimingTests(unittest.TestCase):
 
     def make_frame(self):
         frame = PhotoFrame()
+        frame.slideshow.set_photos(["photo.jpg"])
         Window.add_widget(frame)
         self.addCleanup(Window.remove_widget, frame)
         self.addCleanup(lambda: frame.menu.dismiss(animation=False))

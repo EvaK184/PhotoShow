@@ -4,7 +4,7 @@ from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.graphics import Color, Line
 from kivy.metrics import dp, sp
-from kivy.properties import NumericProperty
+from kivy.properties import BooleanProperty, NumericProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.floatlayout import FloatLayout
@@ -106,6 +106,17 @@ class PhotoSpeedControl(FloatLayout):
 
 class PhotoMenu(ModalView):
     photo_duration = NumericProperty(PHOTO_DURATIONS[0])
+    source_label = StringProperty("No folder selected")
+    source_status = StringProperty("Choose a folder containing JPG, JPEG or PNG pictures.")
+    source_busy = BooleanProperty(False)
+
+    __events__ = ("on_choose_source", "on_use_default_source")
+
+    def on_choose_source(self):
+        pass
+
+    def on_use_default_source(self):
+        pass
 
     def __init__(self, **kwargs):
         super().__init__(
@@ -118,6 +129,7 @@ class PhotoMenu(ModalView):
         )
         self._hover_active = False
         self._speed_visible = False
+        self._source_visible = False
         self._refresh_hover = Clock.create_trigger(self._update_hover, 0)
         content = BoxLayout(orientation="vertical", padding=dp(16),
                             spacing=dp(12), pos_hint={"x": 0, "y": 0})
@@ -135,6 +147,8 @@ class PhotoMenu(ModalView):
             button = MenuOption(text=title)
             if title == "Speed":
                 button.bind(on_release=self.show_speed)
+            elif title == "Source Folder":
+                button.bind(on_release=self.show_source)
             self.option_buttons.append(button)
             options.add_widget(button)
             button.bind(pos=self._refresh_hover, size=self._refresh_hover)
@@ -144,6 +158,7 @@ class PhotoMenu(ModalView):
         content.add_widget(self.scroll)
         self.main_content = content
         self.speed_content = self._build_speed_content()
+        self.source_content = self._build_source_content()
         self.overlay = FloatLayout()
         self.overlay.add_widget(content)
         self.close_button = Button(
@@ -157,6 +172,45 @@ class PhotoMenu(ModalView):
         self.bind(right=self._position_close_button,
                   top=self._position_close_button)
         self._position_close_button()
+
+    def _build_source_content(self):
+        content = BoxLayout(orientation="vertical", padding=dp(16),
+                            spacing=dp(12), pos_hint={"x": 0, "y": 0})
+        header = BoxLayout(size_hint_y=None, height=dp(48))
+        back = MenuOption(text="< Back", size_hint_x=None, width=dp(88))
+        back.bind(on_release=self.show_main)
+        header.add_widget(back)
+        header.add_widget(Label(text="SOURCE FOLDER", bold=True, font_size=sp(18)))
+        content.add_widget(header)
+        folder = Label(text=self.source_label, font_size=sp(16), halign="center",
+                       valign="middle", shorten=True, shorten_from="left")
+        status = Label(text=self.source_status, font_size=sp(16), halign="center",
+                       valign="middle")
+        for label in (folder, status):
+            label.bind(size=lambda widget, size: setattr(widget, "text_size", size))
+            content.add_widget(label)
+        choose = Button(text="Choose folder", size_hint_y=None, height=dp(48))
+        choose.bind(on_release=lambda *_args: self.dispatch("on_choose_source"))
+        self.bind(source_label=lambda _menu, value: setattr(folder, "text", value),
+                  source_status=lambda _menu, value: setattr(status, "text", value),
+                  source_busy=lambda _menu, value: setattr(choose, "disabled", value))
+        content.add_widget(choose)
+        self.default_source_button = Button(
+            text="Use default folder", size_hint_y=None, height=dp(48))
+        self.default_source_button.bind(
+            on_release=lambda *_args: self.dispatch("on_use_default_source"))
+        self.bind(source_busy=lambda _menu, value:
+                  setattr(self.default_source_button, "disabled", value))
+        content.add_widget(self.default_source_button)
+        return content
+
+    def show_source(self, *_args):
+        self.show_main()
+        self._clear_hover()
+        self._source_visible = True
+        self.overlay.remove_widget(self.main_content)
+        self.overlay.add_widget(self.source_content)
+        self._resize_panel()
 
     def _build_speed_content(self):
         content = BoxLayout(orientation="vertical", padding=dp(16),
@@ -190,6 +244,7 @@ class PhotoMenu(ModalView):
     def show_speed(self, *_args):
         if self._speed_visible:
             return
+        self.show_main()
         self._clear_hover()
         self._speed_visible = True
         self.overlay.remove_widget(self.main_content)
@@ -197,10 +252,12 @@ class PhotoMenu(ModalView):
         self._resize_panel()
 
     def show_main(self, *_args):
-        if not self._speed_visible:
+        if not self._speed_visible and not self._source_visible:
             return
+        current = self.speed_content if self._speed_visible else self.source_content
         self._speed_visible = False
-        self.overlay.remove_widget(self.speed_content)
+        self._source_visible = False
+        self.overlay.remove_widget(current)
         self.overlay.add_widget(self.main_content)
         self._resize_panel()
         self._refresh_hover()
@@ -212,8 +269,10 @@ class PhotoMenu(ModalView):
     def _resize_panel(self, *_args):
         # Reserve room above the centered panel for the external close button.
         margin = self.close_button.height + dp(8) + dp(12)
-        self.size_hint_max_x = dp(320 if self._speed_visible else 360)
-        desired_height = dp(224 if self._speed_visible else 432)
+        self.size_hint_max_x = dp(440 if self._source_visible else
+                                  320 if self._speed_visible else 360)
+        desired_height = dp(380 if self._source_visible else
+                            224 if self._speed_visible else 432)
         self.height = min(desired_height, max(0, Window.height - 2 * margin))
 
     def collide_point(self, x, y):
@@ -247,7 +306,7 @@ class PhotoMenu(ModalView):
             button.underline = False
 
     def _update_hover(self, *_args):
-        visible = self._hover_active and not self._speed_visible and self.scroll.collide_point(
+        visible = self._hover_active and not (self._speed_visible or self._source_visible) and self.scroll.collide_point(
             *self.scroll.parent.to_widget(*Window.mouse_pos)
         )
         for button in self.option_buttons:
