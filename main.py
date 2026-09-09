@@ -22,7 +22,9 @@ class PhotoFrame(BoxLayout):
         self.slideshow.show_photo().pos_hint = {"x": 0, "y": 0}
         frame1.add_widget(self.slideshow.show_photo())
 
-        self.menu = PhotoMenu()
+        self.menu = PhotoMenu(photo_duration=self.slideshow.photo_duration)
+        self.menu.bind(photo_duration=lambda _menu, seconds:
+                       self.slideshow.set_photo_duration(seconds))
         self._resume_after_menu = False
         self.menu.bind(on_pre_open=self._pause_for_menu,
                        parent=self._restore_after_menu)

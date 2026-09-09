@@ -2,6 +2,8 @@ import os, random
 from kivy.uix.image import Image
 from kivy.clock import Clock
 
+PHOTO_DURATIONS = (5, 15, 30, 60)
+
 class Slideshow:
     def __init__(self, folder):
         self.folder = folder
@@ -11,6 +13,7 @@ class Slideshow:
         self.index = 0
         self.image = Image(source = self.photos[self.index])
         self.event = None
+        self.photo_duration = PHOTO_DURATIONS[0]
 
     def show_photo(self):
         return self.image
@@ -29,7 +32,18 @@ class Slideshow:
 
     def play(self):
         if self.event is None:
-            self.event = Clock.schedule_interval(self.next_photo, 5)
+            self.event = Clock.schedule_interval(self.next_photo, self.photo_duration)
+
+    def set_photo_duration(self, seconds):
+        """Apply photo timing immediately, preserving the playback state."""
+        if seconds not in PHOTO_DURATIONS:
+            raise ValueError("Photo duration must be 5, 15, 30, or 60 seconds")
+        if seconds == self.photo_duration:
+            return
+        self.photo_duration = seconds
+        if self.is_playing:
+            self.pause()
+            self.play()
 
     def pause(self):
         if self.event is not None:
