@@ -1,0 +1,5 @@
+# Keep the build venv compatible with the cached CPython ensurepip version.
+pip==25.3
+# Use portable Python wheels in python-for-android's Linux build environment.
+charset-normalizer==3.4.9
+chardet==5.2.0

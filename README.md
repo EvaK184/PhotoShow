@@ -53,7 +53,7 @@ playback, pause/resume, skipping, and automatic advance at the end of a video.
 
 `requirements.txt` records the desktop development environment, including Windows-specific packages. Keep those dependencies in the desktop virtual environment. Buildozer is a separate build tool and is installed in the Android build environment described below.
 
-The `requirements` setting under `[app]` in `buildozer.spec` controls the Python packages included in the mobile app. It currently lists `python3,kivy,pyjnius,ffpyplayer`; ffpyplayer provides Android video playback. Do not install `requirements.txt` wholesale into the Android build environment or copy its Windows-specific packages into the spec.
+The `requirements` setting under `[app]` in `buildozer.spec` controls the packages included in the mobile app. It includes Python, Kivy, PyJNIus, ffpyplayer 4.5.3, and FFmpeg 6.1.6. The local recipe in `android_recipes/ffmpeg` keeps FFmpeg on the API supported by ffpyplayer; the upstream FFmpeg 8 recipe is incompatible with ffpyplayer 4.5.x. Keep `p4a.local_recipes` enabled when building. Do not install `requirements.txt` wholesale into the Android build environment or copy its Windows-specific packages into the spec.
 
 Install the updated desktop dependencies with `python -m pip install -r requirements.txt`.
 Video playback uses ffpyplayer on desktop and Android, including automatic camera
@@ -85,7 +85,7 @@ are useful for diagnostics but do not establish the FPS seen on screen.
 
    ```bash
    cd ~/PhotoShow
-   buildozer -v android debug
+   PIP_CONSTRAINT="$PWD/android-constraints.txt" buildozer -v android debug
    ```
 
-Use the existing `buildozer.spec`. The first build downloads additional Android tools; generated packages are written to `bin/`. See the [official quickstart](https://buildozer.readthedocs.io/en/stable/quickstart/) for deployment commands.
+Use the existing `buildozer.spec` and `android-constraints.txt`. The constraints keep pip consistent with the build environment and select portable Python wheels for the encoding-detection dependencies. The first build downloads additional Android tools; generated packages are written to `bin/`. See the [official quickstart](https://buildozer.readthedocs.io/en/stable/quickstart/) for deployment commands.
