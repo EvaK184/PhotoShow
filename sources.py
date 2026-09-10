@@ -1,4 +1,4 @@
-"""Photo sources and saved selection, independent of the slideshow UI."""
+"""Photo/video sources and saved selection, independent of the slideshow UI."""
 
 import json
 import os
@@ -8,6 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 PHOTO_EXTENSIONS = (".jpg", ".jpeg", ".png")
+VIDEO_EXTENSIONS = (".mp4", ".m4v", ".mov", ".avi", ".mkv", ".webm", ".ogv")
+MEDIA_EXTENSIONS = PHOTO_EXTENSIONS + VIDEO_EXTENSIONS
+
+
+def is_video(path):
+    return str(path).lower().endswith(VIDEO_EXTENSIONS)
 
 
 @dataclass(frozen=True)
@@ -28,9 +34,10 @@ class LoadedPhotos:
 
 
 def load_local_photos(folder):
+    """Load supported photos and videos directly inside a folder."""
     with os.scandir(folder) as entries:
         return sorted(entry.path for entry in entries
-                      if entry.name.lower().endswith(PHOTO_EXTENSIONS)
+                      if entry.name.lower().endswith(MEDIA_EXTENSIONS)
                       and entry.is_file() and os.access(entry.path, os.R_OK))
 
 
@@ -40,10 +47,10 @@ def load_source(source):
     elif source.kind == "android_tree":
         result = _load_android_tree(source.location)
     else:
-        raise ValueError("Unknown photo source. Please choose a folder again.")
+        raise ValueError("Unknown media source. Please choose a folder again.")
     if not result.paths:
         result.close()
-        raise ValueError("No JPG, JPEG or PNG pictures found in this folder.")
+        raise ValueError("No JPG, JPEG or PNG pictures or supported videos found in this folder.")
     return result
 
 
@@ -93,7 +100,7 @@ def _load_android_tree(location):
             raise OSError("The selected folder is unavailable.")
         while cursor.moveToNext():
             name = str(cursor.getString(1))
-            if (not name.lower().endswith(PHOTO_EXTENSIONS)
+            if (not name.lower().endswith(MEDIA_EXTENSIONS)
                     or cursor.getString(2) == "vnd.android.document/directory"):
                 continue
             document = contract.buildDocumentUriUsingTree(uri, cursor.getString(0))
@@ -101,7 +108,7 @@ def _load_android_tree(location):
                                        str(len(result.paths)) + Path(name).suffix.lower())
             descriptor = resolver.openFileDescriptor(document, "r")
             if descriptor is None:
-                raise OSError("A picture in this folder could not be read.")
+                raise OSError("A photo or video in this folder could not be read.")
             try:
                 # detachFd transfers ownership to Python, whose context manager
                 # closes the descriptor even when copying fails.

@@ -1,9 +1,14 @@
+import os
+
+# Select before importing Kivy: this backend honors camera rotation metadata
+# and delivers frames as they become ready instead of polling at 30 Hz.
+os.environ.setdefault("KIVY_VIDEO", "ffpyplayer")
+
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.logger import Logger
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.utils import platform
@@ -11,6 +16,7 @@ from pathlib import Path
 from threading import Thread
 from folder_picker import AndroidFolderPicker, FolderPicker
 from menu import MenuButton, PhotoMenu
+from playback_controls import PlaybackButton, PLAY_COLOUR, PAUSE_COLOUR
 from slideshow import Slideshow
 from sources import FolderSource, load_source, read_source, save_source
 
@@ -27,6 +33,7 @@ class PhotoFrame(BoxLayout):
         self._closed = False
         self.folder_picker = None
         self._resume_after_load = False
+        self._autoplay_pending = True
 
         # frame 1
         frame1 = FloatLayout()
@@ -64,17 +71,17 @@ class PhotoFrame(BoxLayout):
         frame2.padding = [20, 10, 20, 10]
         frame2.spacing = 30
 
-        btn1 = Button(text = "previous")
-        btn2 = Button(text= "play/pause")
-        btn3 = Button(text= "next")
+        btn1 = PlaybackButton(icon="previous")
+        btn2 = PlaybackButton(icon="play")
+        btn3 = PlaybackButton(icon="next")
         frame2.add_widget(btn1)
         frame2.add_widget(btn2)
         frame2.add_widget(btn3)
         btn1.bind(on_press=lambda x: self.slideshow.prev_photo())
-        # alternative syntax: btn2.bind(on_press=self.toggle_play)
         btn2.bind(on_press=lambda x: self.slideshow.toggle_play())
         btn3.bind(on_press=lambda x: self.slideshow.next_photo())
         self.playback_buttons = (btn1, btn2, btn3)
+        self.slideshow.bind(is_playing=self._update_controls)
         self._update_controls()
         if self.settings_path:
             Clock.schedule_once(self._restore_source, 0)
@@ -101,9 +108,12 @@ class PhotoFrame(BoxLayout):
             if resume and not self.menu.source_busy:
                 self.slideshow.play()
 
-    def _update_controls(self):
+    def _update_controls(self, *_args):
         for button in self.playback_buttons:
             button.disabled = not self.slideshow.photos or self.menu.source_busy
+        toggle = self.playback_buttons[1]
+        toggle.icon = "pause" if self.slideshow.is_playing else "play"
+        toggle.background_color = PAUSE_COLOUR if self.slideshow.is_playing else PLAY_COLOUR
 
     def _restore_source(self, _dt):
         if self._closed:
@@ -145,10 +155,11 @@ class PhotoFrame(BoxLayout):
     def select_source(self, source, remember=True):
         if self.menu.source_busy or self._closed:
             return
-        self._resume_after_load = self.slideshow.is_playing or self._resume_after_menu
+        self._resume_after_load = (self._autoplay_pending or self.slideshow.is_playing
+                                   or self._resume_after_menu)
         self.slideshow.pause()
         self.menu.source_busy = True
-        self.menu.source_status = "Loading pictures..."
+        self.menu.source_status = "Loading photos and videos..."
         self._update_controls()
 
         def load():
@@ -179,10 +190,11 @@ class PhotoFrame(BoxLayout):
             self.slideshow.folder = source.location
             self._loaded_photos = result
             self.source = source
+            self._autoplay_pending = False
             self.empty_message.text = ""
             self.menu.source_label = source.label
             count = len(result.paths)
-            self.menu.source_status = f"{count} picture{'s' if count != 1 else ''} ready."
+            self.menu.source_status = f"{count} file{'s' if count != 1 else ''} ready."
             if remember and self.settings_path:
                 try:
                     save_source(self.settings_path, source)
@@ -205,7 +217,7 @@ class PhotoFrame(BoxLayout):
 
     def close(self):
         self._closed = True
-        self.slideshow.pause()
+        self.slideshow.close()
         if isinstance(self.folder_picker, AndroidFolderPicker):
             self.folder_picker.close()
         if self._loaded_photos is not None:

@@ -57,13 +57,23 @@ class SourceTests(unittest.TestCase):
 
     def test_reads_only_supported_files_directly_in_selected_folder(self):
         (self.folder / "two.JPEG").write_bytes(PNG)
+        (self.folder / "clip.MP4").write_bytes(b"video")
+        (self.folder / "clip.mov").write_bytes(b"video")
         (self.folder / "notes.txt").write_text("ignore")
         (self.folder / "directory.jpg").mkdir()
         (self.folder / "directory.jpg" / "nested.png").write_bytes(PNG)
         loaded = load_source(self.source)
-        self.assertEqual({Path(path).name for path in loaded.paths}, {"one.PNG", "two.JPEG"})
+        self.assertEqual({Path(path).name for path in loaded.paths},
+                         {"one.PNG", "two.JPEG", "clip.MP4", "clip.mov"})
         loaded.close()
         self.assertTrue((self.folder / "one.PNG").exists())
+
+    def test_video_only_folder_is_accepted(self):
+        (self.folder / "one.PNG").unlink()
+        (self.folder / "clip.MKV").write_bytes(b"video")
+        loaded = load_source(self.source)
+        self.addCleanup(loaded.close)
+        self.assertEqual(loaded.paths, [str(self.folder / "clip.MKV")])
 
     def test_empty_and_missing_folders(self):
         (self.folder / "one.PNG").unlink()
@@ -127,6 +137,35 @@ class SourceTests(unittest.TestCase):
         restored = self.make_frame(restore=True)
         self.finish_loading(restored)
         self.assertEqual(restored.source, self.source)
+        self.assertTrue(restored.slideshow.is_playing)
+        self.assertEqual(restored.playback_buttons[1].icon, "pause")
+
+    def test_autoplay_and_toggle_colours_preserve_a_later_user_pause(self):
+        from playback_controls import PAUSE_COLOUR, PLAY_COLOUR
+
+        frame = self.make_frame()
+        frame.select_source(self.source)
+        self.finish_loading(frame)
+        toggle = frame.playback_buttons[1]
+        self.assertTrue(frame.slideshow.is_playing)
+        self.assertEqual(toggle.icon, "pause")
+        self.assertEqual(tuple(toggle.background_color), PAUSE_COLOUR)
+        frame.menu.open(animation=False)
+        self.assertEqual(toggle.icon, "play")
+        self.assertEqual(tuple(toggle.background_color), PLAY_COLOUR)
+        frame.menu.dismiss(animation=False)
+        self.assertEqual(toggle.icon, "pause")
+        toggle.dispatch("on_press")
+        self.assertFalse(frame.slideshow.is_playing)
+        self.assertEqual(toggle.icon, "play")
+        self.assertEqual(tuple(toggle.background_color), PLAY_COLOUR)
+        frame.select_source(self.source)
+        self.finish_loading(frame)
+        self.assertFalse(frame.slideshow.is_playing)
+        self.assertEqual(toggle.icon, "play")
+        toggle.dispatch("on_press")
+        self.assertTrue(frame.slideshow.is_playing)
+        self.assertEqual(toggle.icon, "pause")
 
     def test_first_launch_uses_repository_photos_then_saved_selection_takes_priority(self):
         default_folder = self.directory / "photos"
@@ -137,6 +176,7 @@ class SourceTests(unittest.TestCase):
             frame = self.make_frame(restore=True)
             self.finish_loading(frame)
             self.assertEqual(frame.source.location, str(default_folder))
+            self.assertTrue(frame.slideshow.is_playing)
             self.assertEqual(frame.slideshow.image.source, str(default_folder / "default.png"))
             save_source(self.settings, self.source)
             restored = self.make_frame(restore=True)

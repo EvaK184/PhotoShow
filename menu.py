@@ -107,7 +107,7 @@ class PhotoSpeedControl(FloatLayout):
 class PhotoMenu(ModalView):
     photo_duration = NumericProperty(PHOTO_DURATIONS[0])
     source_label = StringProperty("No folder selected")
-    source_status = StringProperty("Choose a folder containing JPG, JPEG or PNG pictures.")
+    source_status = StringProperty("Choose a folder containing photos or videos.")
     source_busy = BooleanProperty(False)
 
     __events__ = ("on_choose_source", "on_use_default_source")
